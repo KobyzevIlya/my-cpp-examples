@@ -14,35 +14,35 @@ public:
     void clear();
 
 private:
-    std::vector<int> body;
+    std::vector<int> body_;
 };
 
 void Stack::push(int value) {
-    body.push_back(value);
+    body_.push_back(value);
 }
 
 int Stack::pop() {
-    if (body.empty()) {
+    if (body_.empty()) {
         throw "error";
     }
 
-    int last_element = body.back();
-    body.pop_back();
+    int last_element = body_.back();
+    body_.pop_back();
     return last_element;
 }
 
 int Stack::back() const {
-    if (body.empty()) {
+    if (body_.empty()) {
         throw "error";
     }
 
-    return body.back();
+    return body_.back();
 }
 
 size_t Stack::size() const {
-    return body.size();
+    return body_.size();
 }
 
 void Stack::clear() {
-    body.clear();
+    body_.clear();
 }
