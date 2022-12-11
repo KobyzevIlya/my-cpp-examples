@@ -11,8 +11,6 @@ struct Node {
     Node<T>* right = nullptr;
     Node<T>* parent = nullptr;
 
-    int height = 1;
-
     Color color;
 
     Node(){};
@@ -27,7 +25,6 @@ Node<T>* Node<T>::copy() {
 
     copy->color = color;
     copy->value = value;
-    copy->height = height;
 
     return copy;
 }
@@ -88,20 +85,13 @@ private:
     size_t size_ = 0;
     Node<ValueType>* root_parent_ = nullptr;
 
-    Node<ValueType>* leftTurn(Node<ValueType>* left_node, Node<ValueType>* right_node);
     Node<ValueType>* smallLeftTurn(Node<ValueType>* left_node, Node<ValueType>* right_node);
-    Node<ValueType>* bigLeftTurn(Node<ValueType>* left_node, Node<ValueType>* right_node);
-
-    Node<ValueType>* rightTurn(Node<ValueType>* left_node, Node<ValueType>* right_node);
     Node<ValueType>* smallRightTurn(Node<ValueType>* left_node, Node<ValueType>* right_node);
-    Node<ValueType>* bigRightTurn(Node<ValueType>* left_node, Node<ValueType>* right_node);
 
     void setEmptyChildren(Node<ValueType>* node);
     void insertRebuildRBT(Node<ValueType>* node);
     void eraseRebuildRBT(Node<ValueType>* node);
     void clear(Node<ValueType>* node);
-    void setNodeHeight(Node<ValueType>* node);
-    void setAllParentsHeight(Node<ValueType>* node);
     Node<ValueType>* treeCopyHelper(Node<ValueType>* parent, Node<ValueType>* to_copy);
     Node<ValueType>* findNode(const ValueType value) const;
 };
@@ -170,21 +160,34 @@ bool RBTree<ValueType>::empty() const {
 
 template <typename ValueType>
 typename RBTree<ValueType>::Iterator RBTree<ValueType>::lowerBound(const ValueType& value) const {
-    Node<ValueType>* current = findNode(value);
+    Node<ValueType>* current = root;
+    while (current != nullptr && current->value != value) {
+        if (value > current->value) {
+            if (!current->right) {
+                break;
+            }
+            current = current->right;
+        } else {
+            if (!current->left) {
+                break;
+            }
+            current = current->left;
+        }
+    }
 
-    if (!current) {
+    if (current == nullptr) {
         return Iterator(root_parent_);
     }
 
-    if (/*current->value == value*/ !(current->value < value) && !(value < current->value)) {
+    if (current->value == value) {
         return Iterator(current);
     }
 
-    if (value < current->value) {
+    if (current->value > value) {
         return Iterator(current);
     } else {
         while (current->parent) {
-            if (value < current->parent->value) {
+            if (current->parent->value > value) {
                 return Iterator(current->parent);
             }
             current = current->parent;
@@ -240,7 +243,7 @@ void RBTree<ValueType>::insert(const ValueType& value) {
         root = new Node<ValueType>(value);
 
         root_parent_ = new Node<ValueType>;
-        root_parent_->height = -1;
+        root_parent_->color = Color::DOUBLEBLACK;
         root_parent_->left = root;
 
         root->color = Color::BLACK;
@@ -286,17 +289,9 @@ template <typename ValueType>
 void RBTree<ValueType>::insertRebuildRBT(Node<ValueType>* node) {
     if (!node->parent) {
         node->color = Color::BLACK;
-        setNodeHeight(node);
-        if (node->left) {
-            setNodeHeight(node->left);
-        }
-        if (node->right) {
-            setNodeHeight(node->right);
-        }
     }
 
     if (!(node->color == Color::RED && node->parent->color == Color::RED)) {
-        setAllParentsHeight(node);
         return;
     }
 
@@ -310,20 +305,25 @@ void RBTree<ValueType>::insertRebuildRBT(Node<ValueType>* node) {
                 node->parent->parent->left->color = Color::BLACK;
                 node->parent->parent->right->color = Color::BLACK;
 
-                setNodeHeight(node->parent);
-                setNodeHeight(node->parent->parent);
                 insertRebuildRBT(node->parent->parent);
                 return;
             }
             // если дядя - черный или его нет
             if (!node->parent->parent->right ||
                 node->parent->parent->right->color == Color::BLACK) {
-                setNodeHeight(node->parent);
-                setNodeHeight(node->parent->parent);
 
-                Node<ValueType>* grandfather = rightTurn(node->parent, node->parent->parent);
-                grandfather->color = Color::BLACK;
-                grandfather->right->color = Color::RED;
+                // если текущий узел - правый потомок
+                if (node->parent->right == node) {
+                    smallLeftTurn(node->parent, node);
+                    smallRightTurn(node, node->parent);
+                    node->color = Color::BLACK;
+                    node->right->color = Color::RED;
+                    return;
+                }
+
+                smallRightTurn(node->parent, node->parent->parent);
+                node->parent->color = Color::BLACK;
+                node->parent->right->color = Color::RED;
                 return;
             }
         }
@@ -335,44 +335,29 @@ void RBTree<ValueType>::insertRebuildRBT(Node<ValueType>* node) {
                 node->parent->parent->left->color = Color::BLACK;
                 node->parent->parent->right->color = Color::BLACK;
 
-                setNodeHeight(node->parent);
-                setNodeHeight(node->parent->parent);
                 insertRebuildRBT(node->parent->parent);
                 return;
             }
             // если дядя - черный или его нет
             if (!node->parent->parent->left || node->parent->parent->left->color == Color::BLACK) {
-                setNodeHeight(node->parent);
-                setNodeHeight(node->parent->parent);
 
-                Node<ValueType>* grandfather = leftTurn(node->parent->parent, node->parent);
-                grandfather->color = Color::BLACK;
-                grandfather->left->color = Color::RED;
+                // если текущий узел - левый потомок
+                if (node->parent->left == node) {
+                    smallRightTurn(node, node->parent);
+                    smallLeftTurn(node->parent, node);
+                    node->color = Color::BLACK;
+                    node->left->color = Color::RED;
+                    return;
+                }
+
+                smallLeftTurn(node->parent->parent, node->parent);
+                node->parent->color = Color::BLACK;
+                node->parent->left->color = Color::RED;
                 return;
             }
         }
     } else {
         insertRebuildRBT(node->parent);
-    }
-}
-
-template <typename ValueType>
-Node<ValueType>* RBTree<ValueType>::leftTurn(Node<ValueType>* left_node,
-                                             Node<ValueType>* right_node) {
-    int left_height = 0;
-    int right_height = 0;
-
-    if (right_node->left) {
-        left_height = right_node->left->height;
-    }
-    if (right_node->right) {
-        right_height = right_node->right->height;
-    }
-
-    if (left_height > right_height) {
-        return bigLeftTurn(left_node, right_node);
-    } else {
-        return smallLeftTurn(left_node, right_node);
     }
 }
 
@@ -399,70 +384,7 @@ Node<ValueType>* RBTree<ValueType>::smallLeftTurn(Node<ValueType>* left_node,
         right_node->parent->left = right_node;
     }
 
-    setNodeHeight(left_node);
-    setNodeHeight(right_node);
-
     return right_node;
-}
-
-template <typename ValueType>
-Node<ValueType>* RBTree<ValueType>::bigLeftTurn(Node<ValueType>* left_node,
-                                                Node<ValueType>* right_node) {
-    Node<ValueType>* middle_node = right_node->left;
-    middle_node->parent = left_node->parent;
-
-    if (left_node == root) {
-        root = middle_node;
-
-        root_parent_->left = middle_node;
-    }
-
-    left_node->parent = middle_node;
-    left_node->right = middle_node->left;
-    if (middle_node->left) {
-        middle_node->left->parent = left_node;
-    }
-
-    right_node->parent = middle_node;
-    right_node->left = middle_node->right;
-    if (middle_node->right) {
-        middle_node->right->parent = right_node;
-    }
-
-    middle_node->left = left_node;
-    middle_node->right = right_node;
-
-    if (middle_node->parent && middle_node->parent->value < middle_node->value) {
-        middle_node->parent->right = middle_node;
-    } else if (middle_node->parent) {
-        middle_node->parent->left = middle_node;
-    }
-
-    setNodeHeight(left_node);
-    setNodeHeight(right_node);
-    setNodeHeight(middle_node);
-
-    return middle_node;
-}
-
-template <typename ValueType>
-Node<ValueType>* RBTree<ValueType>::rightTurn(Node<ValueType>* left_node,
-                                              Node<ValueType>* right_node) {
-    int left_height = 0;
-    int right_height = 0;
-
-    if (left_node->left) {
-        left_height = left_node->left->height;
-    }
-    if (left_node->right) {
-        right_height = left_node->right->height;
-    }
-
-    if (right_height > left_height) {
-        return bigRightTurn(left_node, right_node);
-    } else {
-        return smallRightTurn(left_node, right_node);
-    }
 }
 
 template <typename ValueType>
@@ -488,86 +410,13 @@ Node<ValueType>* RBTree<ValueType>::smallRightTurn(Node<ValueType>* left_node,
         left_node->parent->left = left_node;
     }
 
-    setNodeHeight(right_node);
-    setNodeHeight(left_node);
-
     return left_node;
-}
-
-template <typename ValueType>
-Node<ValueType>* RBTree<ValueType>::bigRightTurn(Node<ValueType>* left_node,
-                                                 Node<ValueType>* right_node) {
-    Node<ValueType>* middle_node = left_node->right;
-    middle_node->parent = right_node->parent;
-
-    if (right_node == root) {
-        root = middle_node;
-
-        root_parent_->left = middle_node;
-    }
-
-    right_node->parent = middle_node;
-    right_node->left = middle_node->right;
-    if (middle_node->left) {
-        middle_node->right->parent = right_node;
-    }
-
-    left_node->parent = middle_node;
-    left_node->right = middle_node->left;
-    if (middle_node->left) {
-        middle_node->left->parent = left_node;
-    }
-
-    middle_node->left = left_node;
-    middle_node->right = right_node;
-
-    if (middle_node->parent && middle_node->parent->value < middle_node->value) {
-        middle_node->parent->right = middle_node;
-    } else if (middle_node->parent) {
-        middle_node->parent->left = middle_node;
-    }
-
-    setNodeHeight(left_node);
-    setNodeHeight(right_node);
-    setNodeHeight(middle_node);
-
-    return middle_node;
 }
 
 template <typename ValueType>
 void RBTree<ValueType>::setEmptyChildren(Node<ValueType>* node) {
     node->left = nullptr;
     node->right = nullptr;
-}
-
-template <typename ValueType>
-void RBTree<ValueType>::setNodeHeight(Node<ValueType>* node) {
-    if (node->left && node->right) {
-        node->height = std::max(node->left->height, node->right->height) + 1;
-    } else if (node->left) {
-        node->height = node->left->height + 1;
-    } else if (node->right) {
-        node->height = node->right->height + 1;
-    } else {
-        node->height = 1;
-    }
-}
-
-template <typename ValueType>
-void RBTree<ValueType>::setAllParentsHeight(Node<ValueType>* node) {
-    Node<ValueType>* current = node;
-    while (current) {
-        if (current->left && current->right) {
-            current->height = std::max(current->left->height, current->right->height) + 1;
-        } else if (current->left) {
-            current->height = current->left->height + 1;
-        } else if (current->right) {
-            current->height = current->right->height + 1;
-        } else {
-            current->height = 1;
-        }
-        current = current->parent;
-    }
 }
 
 template <typename ValueType>
@@ -599,7 +448,6 @@ void RBTree<ValueType>::erase(const ValueType& value) {
             } else if (current->parent->right == current) {
                 current->parent->right = nullptr;
             }
-            setAllParentsHeight(current->parent);
 
             --size_;
             delete current;
@@ -640,7 +488,6 @@ void RBTree<ValueType>::erase(const ValueType& value) {
                 current->right = current->left->right;
             }
 
-            setAllParentsHeight(current);
             --size_;
             delete to_delete;
             return;
@@ -656,7 +503,6 @@ void RBTree<ValueType>::erase(const ValueType& value) {
                 current->left = current->right->left;
             }
 
-            setAllParentsHeight(current);
             --size_;
             delete to_delete;
             return;
@@ -808,7 +654,7 @@ typename RBTree<ValueType>::Iterator RBTree<ValueType>::end() const {
 // Iterator
 template <typename ValueType>
 RBTree<ValueType>::Iterator::Iterator(Node<ValueType>* node) {
-    if (node->height == -1) {
+    if (node->color == Color::DOUBLEBLACK) {
         root_parent_ptr_ = node;
     }
     node_ptr_ = node;
@@ -894,9 +740,16 @@ Node<ValueType>* RBTree<ValueType>::Iterator::goNext(Node<ValueType>* node) {
 
 template <typename ValueType>
 Node<ValueType>* RBTree<ValueType>::Iterator::goPrevious(Node<ValueType>* node) {
-    if (!node || node == root_parent_ptr_) {
+    if (!node) {
         return node;
     }
+    if (node == root_parent_ptr_) {
+        node_ptr_ = root_parent_ptr_->left;
+        while (node_ptr_->right) {
+            node_ptr_ = node_ptr_->right;
+        }
+    }
+
     Node<ValueType>* current = node;
     if (current->left) {
         current = current->left;
