@@ -764,7 +764,7 @@ Node<K, V>* Map<K, V>::Iterator::goNext(Node<K, V>* node) {
 
 template <typename K, typename V>
 Node<K, V>* Map<K, V>::Iterator::goPrevious(Node<K, V>* node) {
-    if (!node || node == root_parent_ptr_) {
+    if (!node) {
         return node;
     }
     if (node == root_parent_ptr_) {
