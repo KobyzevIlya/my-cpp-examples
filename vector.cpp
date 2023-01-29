@@ -1,8 +1,5 @@
-#include <iostream>
 #include <cstring>
 #include <stdexcept>
-#include <iterator>
-#include <algorithm>
 #include <initializer_list>
 
 class Vector {
@@ -30,6 +27,8 @@ public:
 
         friend bool operator==(const Iterator& a, const Iterator& b);
         friend bool operator!=(const Iterator& a, const Iterator& b);
+
+        DifferenceType operator-(const Iterator& a);
 
     private:
         int* m_ptr_;
@@ -147,6 +146,10 @@ bool operator==(const Vector::Iterator& a, const Vector::Iterator& b) {
 
 bool operator!=(const Vector::Iterator& a, const Vector::Iterator& b) {
     return a.m_ptr_ != b.m_ptr_;
+}
+
+Vector::Iterator::DifferenceType Vector::Iterator::operator-(const Vector::Iterator& a) {
+    return this->m_ptr_ - a.m_ptr_;
 }
 
 Vector::Vector() : size_(0), capacity_(10) {
@@ -316,7 +319,6 @@ int& Vector::operator[](size_t pos) {
     if (pos >= size_) {
         throw std::runtime_error("Wrong Position!");
     }
-
     return arr_[pos];
 }
 
@@ -324,7 +326,6 @@ const int& Vector::operator[](size_t pos) const {
     if (pos >= size_) {
         throw std::runtime_error("Wrong Position!");
     }
-
     return arr_[pos];
 }
 
@@ -340,10 +341,53 @@ void Vector::swap(Vector& v) {
     std::swap(capacity_, v.capacity_);
 }
 
+void merge(Vector::Iterator& begin, Vector::Iterator& middle, Vector::Iterator& end) {
+    Vector buffer(end - begin);
+    Vector::Iterator j_begin = begin, j_end = middle;
+
+    for (int i = 0; i < end - begin; ++i) {
+        if (j_end == end) {
+            buffer[i] = *j_begin;
+            ++j_begin;
+        } else if (j_begin == middle) {
+            buffer[i] = *j_end;
+            ++j_end;
+        } else if (*j_begin <= *j_end) {
+            buffer[i] = *j_begin;
+            ++j_begin;
+        } else {
+            buffer[i] = *j_end;
+            ++j_end;
+        }
+    }
+
+    int n = end - begin;
+    Vector::Iterator left = begin;
+    for (int i = 0; i < n; ++i) {
+        *left = buffer[i];
+        ++left;
+    }
+}
+
 void mergeSort(Vector::Iterator begin, Vector::Iterator end) {
-    int x;
+    if (end - begin <= 1) {
+        return;
+    }
+
+    Vector::Iterator middle = begin + ((end - begin) / 2);
+
+    mergeSort(begin, middle);
+    mergeSort(middle, end);
+
+    merge(begin, middle, end);
 }
 
 void insertionSort(Vector::Iterator begin, Vector::Iterator end) {
-    int x;
+    for (Vector::Iterator right = begin; right != end; ++right) {
+        for (Vector::Iterator middle = right, left = right - 1; middle != begin; --middle, --left) {
+            if (*middle < *left) {
+                std::swap(*left, *middle);
+            }
+        }
+    }
 }
